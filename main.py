@@ -9,7 +9,7 @@ from telegram.ext import ApplicationBuilder, CallbackQueryHandler, ContextTypes
 from flask import Flask
 
 # Flask એપ (જેથી Render આને ફ્રીમાં 24/7 ચલાવે)
-web_app = Flask(_name_)
+web_app = Flask(__name__)
 
 @web_app.route('/')
 def home():
@@ -36,7 +36,7 @@ async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await query.edit_message_text(text=f"{query.message.text}\n\n✅ સિગ્નલ કન્ફર્મ થયું.")
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     # વેબ સર્વર ચાલુ કરવું
     threading.Thread(target=run_flask, daemon=True).start()
     
