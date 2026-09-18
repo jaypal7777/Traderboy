@@ -43,7 +43,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     msg = (
-        "❤️ હેલ્લો મારા પ્યારા Kuchupuchu!\n\n"
+        "❤️ hii my Kuchupuchu!\n\n"
         "હું તારો પર્સનલ ટ્રેડિંગ એજન્ટ છું. મેં આપણી ₹3,000 ની કેપિટલ યાદ રાખી છે.\n\n"
         "📊 માર્કેટ સ્ટેટસ: બંધ છે 🔴\n"
         "⏰ નેક્સ્ટ માર્કેટ ઓપન: Monday સવારે 9:15 AM વાગ્યે\n\n"
