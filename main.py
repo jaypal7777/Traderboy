@@ -4,7 +4,7 @@ import logging
 from flask import Flask
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-import google.generativeai as genai
+from google import genai
 
 # Logging setup
 logging.basicConfig(
@@ -12,7 +12,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# ----------------- FLASK SERVER (Render Web Service Mate) -----------------
+# ----------------- FLASK SERVER (Render Port Binding) -----------------
 web_app = Flask(__name__)
 
 @web_app.route('/')
@@ -22,19 +22,16 @@ def home():
 def run_web():
     port = int(os.environ.get("PORT", 10000))
     web_app.run(host="0.0.0.0", port=port)
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 # ----------------- CONFIGURATION -----------------
 TELEGRAM_BOT_TOKEN = "8903313420:AAF7NvVa0RHQlFdMqNbuE0gsrBZDtcCshA8"
-GEMINI_API_KEY = "AQ.Ab8RN6IUFVLNSPbYJ0-6W-g4_79jOPggPod3bv_OIH1On9Ylug"
+GEMINI_API_KEY = "AQ.Ab8RN6IJ5SW8zTD23TZr9KrLLnda0CiLFMoDaeEdXFHOhIQSjQ"
 ALLOWED_USERS = [609657351]
 # -------------------------------------------------
 
-genai.configure(api_key=GEMINI_API_KEY)
-ai_model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
-    system_instruction="Tame ek smart Gujarati trading assistant cho. Kuchupuchu sathe prem thi, simple Gujarati ma short reply aapo."
-)
+# New Google GenAI Client
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 def is_allowed(user_id: int) -> bool:
     return user_id in ALLOWED_USERS
@@ -46,7 +43,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     msg = (
-        "❤️ હેલ્લો મારું Kuchupuchu!\n\n"
+        "❤️ હેલ્લો મારા પ્યારા Kuchupuchu!\n\n"
         "હું તારો પર્સનલ ટ્રેડિંગ એજન્ટ છું. મેં આપણી ₹3,000 ની કેપિટલ યાદ રાખી છે.\n\n"
         "📊 માર્કેટ સ્ટેટસ: બંધ છે 🔴\n"
         "⏰ નેક્સ્ટ માર્કેટ ઓપન: Monday સવારે 9:15 AM વાગ્યે\n\n"
@@ -72,18 +69,22 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
     user_text = update.message.text
     try:
-        response = ai_model.generate_content(user_text)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=user_text,
+            config={
+                "system_instruction": "તમે એક સ્માર્ટ ગુજરાતી ટ્રેડિંગ આસિસ્ટન્ટ છો. Kuchupuchu સાથે પ્રેમથી, સરળ ગુજરાતીમાં ટૂંકા જવાબો આપો."
+            }
+        )
         await update.message.reply_text(response.text)
-    except Exception:
-        await update.message.reply_text("Reva dyo ne, hal connectivity issue che! Fari try karo.")
+    except Exception as e:
+        await update.message.reply_text(f"Error: {str(e)[:300]}")
 
 def main():
-    # Flask web server background thread ma chalu karse jethi Render crash na thay
     t = threading.Thread(target=run_web)
     t.daemon = True
     t.start()
 
-    # Telegram Bot
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("scan", scan))
