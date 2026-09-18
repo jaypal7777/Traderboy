@@ -1,10 +1,4 @@
-flask
 python-telegram-bot>=21.0
-google-genai
-python-telegram-bot
-yfinance
-pandas
-ta
-flask
-gunicorn
-
+groq>=0.18.0
+flask>=3.0.0
+gunicorn>=22.0.0
