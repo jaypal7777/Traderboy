@@ -16,15 +16,12 @@ logger = logging.getLogger(__name__)
 # --- Credentials & Config ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8903313420:AAF7NvVa0RHQlFdMqNbuE0gsrBZDtcCshA8")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
-ADMIN_ID = 609657351  # Master Owner ID
+ADMIN_ID = 609657351  # Master Owner Telegram ID
 
-# Approved users list (Admin default approved)
 approved_users = {ADMIN_ID}
-
-# Groq Client Initialization
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-# Render dummy web server (Render Web Service port bind mate)
+# Render dummy web server (Port binding mate)
 web_app = Flask(__name__)
 
 @web_app.route("/")
@@ -35,7 +32,23 @@ def run_web():
     port = int(os.environ.get("PORT", 8080))
     web_app.run(host="0.0.0.0", port=port)
 
-# --- Bot Handlers ---
+# --- Active Model Finder ---
+def get_available_groq_model():
+    """Groq na server par thi active chat model automatically shodhi lese"""
+    try:
+        models = groq_client.models.list()
+        for m in models.data:
+            # Whisper સિવાયનું કોઈ પણ ટેક્સ્ટ મોડેલ પકડી લેશે
+            if "whisper" not in m.id.lower():
+                logger.info(f"Using auto-detected Groq model: {m.id}")
+                return m.id
+    except Exception as e:
+        logger.error(f"Error fetching model list: {e}")
+    return "llama3-8b-8192"
+
+ACTIVE_MODEL = get_available_groq_model()
+
+# --- Telegram Handlers ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_user or not update.message:
@@ -45,11 +58,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name or "Dost"
     
     if user_id == ADMIN_ID:
-        await update.message.reply_text("Hii maru kuchupuchu ❤️\nTamaro bot ready che! Hu fakt tamara mate active chu.")
+        await update.message.reply_text("Hii maru kuchupuchu ❤️\nTamaro bot fully ready che! Hu fakt tamara mate active chu.")
     elif user_id in approved_users:
         await update.message.reply_text(f"Kem cho {user_name}! Bot ma tamaru swagat che.")
     else:
-        await update.message.reply_text("Aa private bot che. Tamari request admin ne mokli didhi che. Approval pachi vapari shaksho.")
+        await update.message.reply_text("Aa private bot che. Tamari request admin ne mokli didhi che.")
         try:
             username_tag = f"@{update.effective_user.username}" if update.effective_user.username else "Nathi"
             await context.bot.send_message(
@@ -95,6 +108,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Krupaya sacho number ID lakho.")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global ACTIVE_MODEL
     if not update.effective_user or not update.message or not update.message.text:
         return
         
@@ -102,7 +116,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name or "Dost"
     user_msg = update.message.text
     
-    # Security check: Fakt tame athva approved user j vaapari shake
+    # Security check
     if user_id not in approved_users and user_id != ADMIN_ID:
         await update.message.reply_text("⛔ Tamari pase permission nathi. Admin approval ni rah juo.")
         try:
@@ -120,45 +134,43 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Error alerting admin: {e}")
         return
 
-    # Groq AI call - llama-3.1-8b-instant (Fast, stable & reliable)
+    # Groq AI call (Direct Active Model Call)
     try:
         system_prompt = (
             "You are a loving, reliable personal AI trading partner and friend named 'kuchupuchu'. "
-            "Reply naturally in Gujarati or Gujarati Latin script (e.g. 'kem cho', 'aaje market ma...'). "
-            "Help with trading mindset, discipline, calculations, risk management, and market discussions. "
-            "Keep answers concise, direct, helpful, and caring."
+            "Reply naturally in Gujarati or Gujarati Latin script (e.g. 'kem cho', 'hu maja ma chu'). "
+            "Help with trading discipline, risk management, calculations, and daily chats warmly and smartly."
         )
         
         completion = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=ACTIVE_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_msg}
             ],
             temperature=0.7,
-            max_tokens=800
+            max_tokens=700
         )
         
-        answer = completion.choices[0].message.content
-        await update.message.reply_text(answer)
+        reply = completion.choices[0].message.content
+        await update.message.reply_text(reply)
         
     except Exception as e:
-        logger.error(f"Groq API Error: {e}")
+        logger.error(f"Groq API Error on {ACTIVE_MODEL}: {e}")
+        # જો મોડેલમાં હજુ પણ વાંધો હોય તો ફરી લિસ્ટમાંથી નવું મોડેલ ખેંચશે
+        ACTIVE_MODEL = get_available_groq_model()
         await update.message.reply_text("Reva dyo ne, hal connectivity issue che! Fari try karo.")
 
 def main():
-    # Background Flask thread start
-    server_thread = Thread(target=run_web, daemon=True)
-    server_thread.start()
+    Thread(target=run_web, daemon=True).start()
     
-    # Telegram Bot runner
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("approve", approve))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    logger.info("Bot sharu thai gayo che...")
+    logger.info("Bot starting polling smoothly...")
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
