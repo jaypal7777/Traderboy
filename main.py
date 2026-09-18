@@ -1,13 +1,28 @@
 import os
+import threading
 import logging
+from flask import Flask
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import google.generativeai as genai
 
+# Logging setup
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+
+# ----------------- FLASK SERVER (Render Web Service Mate) -----------------
+web_app = Flask(__name__)
+
+@web_app.route('/')
+def home():
+    return "Traderboy Bot Live Che!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    web_app.run(host="0.0.0.0", port=port)
+# -------------------------------------------------------------------------
 
 # ----------------- CONFIGURATION -----------------
 TELEGRAM_BOT_TOKEN = "8903313420:AAF7NvVa0RHQ1FdMqnNbuE0gsrBZDtcCshA8"
@@ -18,7 +33,7 @@ ALLOWED_USERS = [609657351]
 genai.configure(api_key=GEMINI_API_KEY)
 ai_model = genai.GenerativeModel(
     model_name="gemini-1.5-flash",
-    system_instruction="તમે એક સ્માર્ટ ગુજરાતી ટ્રેડિંગ આસિસ્ટન્ટ છો. Kuchupuchu સાથે પ્રેમથી, સરળ ગુજરાતીમાં ટૂંકા જવાબો આપો."
+    system_instruction="Tame ek smart Gujarati trading assistant cho. Kuchupuchu sathe prem thi, simple Gujarati ma short reply aapo."
 )
 
 def is_allowed(user_id: int) -> bool:
@@ -27,11 +42,11 @@ def is_allowed(user_id: int) -> bool:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not is_allowed(user_id):
-        await update.message.reply_text("માફ કરજો! આ પ્રાઇવેટ બોટ છે. તમે આ બોટ વાપરી શકતા નથી.")
+        await update.message.reply_text("Maaf karjo! Aa private bot che.")
         return
 
     msg = (
-        "❤️ હેલ્લો મારૂ Kuchupuchu!\n\n"
+        "❤️ હેલ્લો મારું Kuchupuchu!\n\n"
         "હું તારો પર્સનલ ટ્રેડિંગ એજન્ટ છું. મેં આપણી ₹3,000 ની કેપિટલ યાદ રાખી છે.\n\n"
         "📊 માર્કેટ સ્ટેટસ: બંધ છે 🔴\n"
         "⏰ નેક્સ્ટ માર્કેટ ઓપન: Monday સવારે 9:15 AM વાગ્યે\n\n"
@@ -43,7 +58,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not is_allowed(user_id):
-        await update.message.reply_text("માફ કરજો! આ પ્રાઇવેટ બોટ છે.")
+        await update.message.reply_text("Maaf karjo! Aa private bot che.")
         return
 
     await update.message.reply_text("🔍 માર્કેટ સ્કેન થઈ રહ્યું છે... હાલમાં કોઈ નવો ટ્રેડ એલર્ટ નથી!")
@@ -51,21 +66,25 @@ async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not is_allowed(user_id):
-        await update.message.reply_text("માફ કરજો! આ પ્રાઇવેટ બોટ છે. તમે આ બોટ વાપરી શકતા નથી.")
+        await update.message.reply_text("Maaf karjo! Aa private bot che.")
         return
 
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    
     user_text = update.message.text
     try:
         response = ai_model.generate_content(user_text)
         await update.message.reply_text(response.text)
     except Exception:
-        await update.message.reply_text("અત્યારે કનેક્શનમાં થોડી સમસ્યા છે, ફરી ટ્રાય કરો.")
+        await update.message.reply_text("Reva dyo ne, hal connectivity issue che! Fari try karo.")
 
 def main():
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    # Flask web server background thread ma chalu karse jethi Render crash na thay
+    t = threading.Thread(target=run_web)
+    t.daemon = True
+    t.start()
 
+    # Telegram Bot
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("scan", scan))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_chat))
@@ -75,4 +94,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
