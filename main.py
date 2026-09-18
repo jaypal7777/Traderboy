@@ -9,15 +9,24 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# Tamari Keys & Token
+# Credentials
 TELEGRAM_BOT_TOKEN = "8903313420:AAF7NvVa0RHQlFdMqNbuE0gsrBZDtcCshA8"
 GEMINI_API_KEY = "AQ.Ab8RN6IJ5SW8zTD23TZr9KrLLnda0CiLFMoDaeEdXFHOhIQSjQ"
+USER_CHAT_ID = "609657351"
 
 # Gemini Client setup
 client = genai.Client(api_key=GEMINI_API_KEY)
-
-# Updated Model Name
 MODEL_NAME = "gemini-3.6-flash"
+
+# Bot chalu thata j automatic tamne samethi message moklashe
+async def on_startup(app):
+    try:
+        await app.bot.send_message(
+            chat_id=USER_CHAT_ID,
+            text="Hii maru kuchupuchu ♥️"
+        )
+    except Exception as e:
+        logging.error(f"Startup message error: {e}")
 
 # /start command handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -48,7 +57,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(reply_text)
 
 def main():
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    app = (
+        ApplicationBuilder()
+        .token(TELEGRAM_BOT_TOKEN)
+        .post_init(on_startup)
+        .build()
+    )
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("scan", scan))
