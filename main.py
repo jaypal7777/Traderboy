@@ -25,7 +25,7 @@ def run_web():
 # -------------------------------------------------------------------------
 
 # ----------------- CONFIGURATION -----------------
-TELEGRAM_BOT_TOKEN = "8903313420:AAF7NvVa0RHQ1FdMqnNbuE0gsrBZDtcCshA8"
+TELEGRAM_BOT_TOKEN = "8903313420:AAF7NvVa0RHQlFdMqNbuE0gsrBZDtcCshA8"
 GEMINI_API_KEY = "AQ.Ab8RN6IUFVLNSPbYJ0-6W-g4_79jOPggPod3bv_OIH1On9Ylug"
 ALLOWED_USERS = [609657351]
 # -------------------------------------------------
