@@ -16,26 +16,26 @@ logger = logging.getLogger(__name__)
 # --- Credentials & Config ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8903313420:AAF7NvVa0RHQlFdMqNbuE0gsrBZDtcCshA8")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
-ADMIN_ID = 609657351  # Tamaru master Telegram ID
+ADMIN_ID = 609657351  # Master Owner ID
 
-# Approved users set
+# Approved users list (Admin default approved)
 approved_users = {ADMIN_ID}
 
-# Groq Client
+# Groq Client Initialization
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-# Render dummy web server (Port bind mate)
+# Render dummy web server (Render Web Service port bind mate)
 web_app = Flask(__name__)
 
 @web_app.route("/")
 def home():
-    return "kuchupuchu bot is running smoothly!"
+    return "kuchupuchu bot is alive and running!"
 
 def run_web():
     port = int(os.environ.get("PORT", 8080))
     web_app.run(host="0.0.0.0", port=port)
 
-# --- Handlers ---
+# --- Bot Handlers ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_user or not update.message:
@@ -55,7 +55,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
                 text=(
-                    f"⚠️ Navo user bot vaparva mange che:\n"
+                    f"⚠️ Navo user permission mange che:\n"
                     f"Name: {user_name}\n"
                     f"Username: {username_tag}\n"
                     f"User ID: `{user_id}`\n\n"
@@ -76,7 +76,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
         
     if not context.args:
-        await update.message.reply_text("Krupa kari User ID aapo. Jethi: `/approve 123456789`", parse_mode="Markdown")
+        await update.message.reply_text("Krupaya User ID lakho. Example: `/approve 123456789`", parse_mode="Markdown")
         return
         
     try:
@@ -102,9 +102,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name or "Dost"
     user_msg = update.message.text
     
-    # Permission verification
+    # Security check: Fakt tame athva approved user j vaapari shake
     if user_id not in approved_users and user_id != ADMIN_ID:
-        await update.message.reply_text("⛔ Tamari pase permission nathi. Admin na approval ni rah juo.")
+        await update.message.reply_text("⛔ Tamari pase permission nathi. Admin approval ni rah juo.")
         try:
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
@@ -120,22 +120,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Error alerting admin: {e}")
         return
 
-    # Groq AI call
+    # Groq AI call - llama-3.1-8b-instant (Fast, stable & reliable)
     try:
         system_prompt = (
-            "You are a loving, helpful personal AI friend and trader assistant named 'kuchupuchu'. "
-            "Reply naturally in Gujarati or Gujarati written in English/Latin letters (like 'kem cho', 'hu maja ma chu'). "
-            "Be sweet, helpful, smart, and direct."
+            "You are a loving, reliable personal AI trading partner and friend named 'kuchupuchu'. "
+            "Reply naturally in Gujarati or Gujarati Latin script (e.g. 'kem cho', 'aaje market ma...'). "
+            "Help with trading mindset, discipline, calculations, risk management, and market discussions. "
+            "Keep answers concise, direct, helpful, and caring."
         )
         
         completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_msg}
             ],
             temperature=0.7,
-            max_tokens=700
+            max_tokens=800
         )
         
         answer = completion.choices[0].message.content
@@ -146,18 +147,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Reva dyo ne, hal connectivity issue che! Fari try karo.")
 
 def main():
-    # Flask thread start karo
+    # Background Flask thread start
     server_thread = Thread(target=run_web, daemon=True)
     server_thread.start()
     
-    # Telegram polling
+    # Telegram Bot runner
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("approve", approve))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    logger.info("Bot sharu thayi gayo che...")
+    logger.info("Bot sharu thai gayo che...")
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
