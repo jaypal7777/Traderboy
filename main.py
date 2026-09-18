@@ -1,3 +1,4 @@
+import time
 import logging
 from google import genai
 from telegram import Update
@@ -16,9 +17,15 @@ USER_CHAT_ID = "609657351"
 
 # Gemini Client setup
 client = genai.Client(api_key=GEMINI_API_KEY)
-MODEL_NAME = "gemini-3.6-flash"
 
-# Bot chalu thata j automatic tamne samethi message moklashe
+# જો એક મોડેલમાં હાઈ ડિમાન્ડ (503) આવે તો કોડ ઓટોમેટિક બીજા મોડેલ પર જશે
+BACKUP_MODELS = [
+    "gemini-3.6-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash"
+]
+
+# Bot chalu thata j automatic samethi message moklashe
 async def on_startup(app):
     try:
         await app.bot.send_message(
@@ -41,18 +48,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🔍 માર્કેટ સ્કેન થઈ રહ્યું છે... હાલ કોઈ નવો બ્રેકઆઉટ નથી.")
 
-# Normal message handler (Gemini Response)
+# Smart Message Handler with Auto-Retry & Fallback
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
-    try:
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=user_text,
-        )
-        reply_text = response.text
-    except Exception as e:
-        logging.error(f"Error: {e}")
-        reply_text = "Reva dyo ne, hal connectivity issue che! Fari try karo."
+    reply_text = None
+
+    # મોડેલ્સ એક પછી એક ટ્રાય કરશે જેથી ક્યારેય 503 કે 404 ના લીધે બોટ અટકે નહીં
+    for model_name in BACKUP_MODELS:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=user_text,
+            )
+            if response and response.text:
+                reply_text = response.text
+                break  # જવાબ મળી ગયો એટલે લૂપ બંધ થશે
+        except Exception as err:
+            logging.warning(f"Model {model_name} failed with error: {err}. Trying backup model...")
+            time.sleep(0.5)
+            continue
+
+    if not reply_text:
+        reply_text = "હાલમાં AI સર્વર પર ભારે ટ્રાફિક છે, કૃપા કરીને 1 મિનિટ પછી ફરી મેસેજ કરો."
 
     await update.message.reply_text(reply_text)
 
