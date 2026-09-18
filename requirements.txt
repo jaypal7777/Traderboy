@@ -1,6 +1,6 @@
 flask
 python-telegram-bot>=21.0
-google-generativeai
+google-genai
 python-telegram-bot
 yfinance
 pandas
