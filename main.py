@@ -12,7 +12,7 @@ logging.basicConfig(
 
 # ----------------- CONFIGURATION -----------------
 # Tamara Telegram Bot no Token (BotFather mathi malelo)
-TELEGRAM_BOT_TOKEN = "TAMARO_TELEGRAM_BOT_TOKEN_AHI_MUKO"
+TELEGRAM_BOT_TOKEN =8903313420:AAF7NvVa0RHQlFdMqNbuE0gsrBZDtcCshA8 "TAMARO_TELEGRAM_BOT_TOKEN_AHI_MUKO"
 
 # Gemini API Key (aistudio.google.com mathi maleli)
 GEMINI_API_KEY = "TAMARI_GEMINI_API_KEY_AHI_MUKO"
