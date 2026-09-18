@@ -1,91 +1,140 @@
-import time
+import os
 import logging
-from google import genai
+from threading import Thread
+from flask import Flask
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from groq import Groq
 
 # Logging setup
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Credentials
-TELEGRAM_BOT_TOKEN = "8903313420:AAF7NvVa0RHQlFdMqNbuE0gsrBZDtcCshA8"
-GEMINI_API_KEY = "AQ.Ab8RN6IJ5SW8zTD23TZr9KrLLnda0CiLFMoDaeEdXFHOhIQSjQ"
-USER_CHAT_ID = "609657351"
+# --- Credentials & Config ---
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8903313420:AAF7NvVa0RHQlFdMqNbuE0gsrBZDtcCshA8")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
+ADMIN_ID = 609657351  # Tamaru Telegram User ID (Master / Owner)
 
-# Gemini Client setup
-client = genai.Client(api_key=GEMINI_API_KEY)
+# Approved Users list (Admin default approved che)
+approved_users = {ADMIN_ID}
 
-# જો એક મોડેલમાં હાઈ ડિમાન્ડ (503) આવે તો કોડ ઓટોમેટિક બીજા મોડેલ પર જશે
-BACKUP_MODELS = [
-    "gemini-3.6-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash"
-]
+# Groq Client Initialization
+groq_client = Groq(api_key=GROQ_API_KEY)
 
-# Bot chalu thata j automatic samethi message moklashe
-async def on_startup(app):
-    try:
-        await app.bot.send_message(
-            chat_id=USER_CHAT_ID,
-            text="Hii maru kuchupuchu ♥️"
-        )
-    except Exception as e:
-        logging.error(f"Startup message error: {e}")
+# Render Web Service Dummy Server (Render Port Binding & Free tier keep-alive)
+web_app = Flask(__name__)
 
-# /start command handler
+@web_app.route("/")
+def home():
+    return "kuchupuchu bot is alive and running!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 8080))
+    web_app.run(host="0.0.0.0", port=port)
+
+# --- Telegram Bot Handlers ---
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_text = (
-        "⏰ નેક્સ્ટ માર્કેટ ઓપન: Monday સવારે 9:15 AM વાગ્યે\n\n"
-        "હું લાઈવ માર્કેટમાં તને એલર્ટ મોકલીશ અને સાંજે 3:30 વાગ્યે આખા દિવસનો નફો-નુકસાન રિપોર્ટ આપીશ!\n"
-        "ટેસ્ટ કરવા માટે /scan લખી શકીશ."
-    )
-    await update.message.reply_text(welcome_text)
-
-# /scan command handler
-async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🔍 માર્કેટ સ્કેન થઈ રહ્યું છે... હાલ કોઈ નવો બ્રેકઆઉટ નથી.")
-
-# Smart Message Handler with Auto-Retry & Fallback
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_text = update.message.text
-    reply_text = None
-
-    # મોડેલ્સ એક પછી એક ટ્રાય કરશે જેથી ક્યારેય 503 કે 404 ના લીધે બોટ અટકે નહીં
-    for model_name in BACKUP_MODELS:
+    user_id = update.effective_user.id
+    user_name = update.effective_user.first_name or "Friend"
+    
+    if user_id == ADMIN_ID:
+        await update.message.reply_text(f"Hii maru kuchupuchu ❤️\nTamaro bot ready che! Hu fakt tamara mate active chu.")
+    elif user_id in approved_users:
+        await update.message.reply_text(f"Kem cho {user_name}! Bot ma tamaru swagat che.")
+    else:
+        # Bijo koi use kare tyare admin ne request jase
+        await update.message.reply_text("Aa private bot che. Tamari permission request admin ne moklva ma aavi che. Manzoori malya pachhi tame vaapari sakso.")
+        
+        # Admin ne alert moklo
         try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=user_text,
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f"⚠️ Navo User Permission Mange Che:\nName: {user_name}\nUsername: @{update.effective_user.username}\nUser ID: `{user_id}`\n\nAa user ne approve karva mate niche no command moklo:\n/approve {user_id}",
+                parse_mode="Markdown"
             )
-            if response and response.text:
-                reply_text = response.text
-                break  # જવાબ મળી ગયો એટલે લૂપ બંધ થશે
-        except Exception as err:
-            logging.warning(f"Model {model_name} failed with error: {err}. Trying backup model...")
-            time.sleep(0.5)
-            continue
+        except Exception as e:
+            logger.error(f"Error alerting admin: {e}")
 
-    if not reply_text:
-        reply_text = "હાલમાં AI સર્વર પર ભારે ટ્રાફિક છે, કૃપા કરીને 1 મિનિટ પછી ફરી મેસેજ કરો."
+async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("Tame admin nathi, tamari pase aa command chalavvano adhikar nathi.")
+        return
+        
+    if not context.args:
+        await update.message.reply_text("Krupa kari ne User ID lakho. Example: /approve 123456789")
+        return
+        
+    try:
+        new_user_id = int(context.args[0])
+        approved_users.add(new_user_id)
+        await update.message.reply_text(f"User ID {new_user_id} ne successfully approve kari didha che!")
+        
+        # New approved user ne intimation moklo
+        try:
+            await context.bot.send_message(chat_id=new_user_id, text="Tamari permission approve thai gayi che! Have tame bot vapari shako cho.")
+        except Exception:
+            pass
+    except ValueError:
+        await update.message.reply_text("Aamany User ID. Fakt number lakho.")
 
-    await update.message.reply_text(reply_text)
+async def handle_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user_name = update.effective_user.first_name or "Friend"
+    user_message = update.message.text
+    
+    # Permission Check
+    if user_id not in approved_users and user_id != ADMIN_ID:
+        await update.message.reply_text("⛔ Tamari pase aa bot vaparvani permission nathi. Admin approval ni rah juo.")
+        # Admin alert
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f"Unauthorized access try:\nUser: {user_name} (ID: `{user_id}`)\nMessage: {user_message}\nApprove: `/approve {user_id}`",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger.error(f"Admin alert error: {e}")
+        return
+
+    # Groq AI Call
+    try:
+        system_prompt = (
+            "You are a loving, helpful personal AI friend and trader assistant named 'kuchupuchu'. "
+            "Reply naturally in Gujarati (or Gujarati in English/Latin alphabet like 'kem cho'). "
+            "Keep the tone friendly, caring, and smart. Assist with trading concepts, daily news, or casual chats warmly."
+        )
+        
+        completion = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.7,
+            max_tokens=800
+        )
+        
+        reply = completion.choices[0].message.content
+        await update.message.reply_text(reply)
+        
+    except Exception as e:
+        logger.error(f"Groq API Error: {e}")
+        await update.message.reply_text("Reva dyo ne, connectivity issue che! Fari try karo.")
 
 def main():
-    app = (
-        ApplicationBuilder()
-        .token(TELEGRAM_BOT_TOKEN)
-        .post_init(on_startup)
-        .build()
-    )
-
+    # Render Web Server background thread ma chalu karo
+    Thread(target=run_web, daemon=True).start()
+    
+    # Telegram Bot Polling
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("scan", scan))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-
-    print("Kuchupuchu Bot chalu thai gyo che...")
+    app.add_handler(CommandHandler("approve", approve))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_chat))
+    
+    logger.info("Bot starting polling...")
     app.run_polling()
 
 if __name__ == "__main__":
